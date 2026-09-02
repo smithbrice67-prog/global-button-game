@@ -1,35 +1,37 @@
-const path = require('path');
-const http = require('http');
-const express = require('express');
-const { Server } = require('socket.io');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
+
 let totalClicks = 0;
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
-io.on('connection', (socket) => {
-  console.log(`Connected: ${socket.id}`);
+io.on("connection", (socket) => {
+  console.log("Player connected");
 
-  // Send the current global score to the new player.
-  socket.emit('score_update', totalClicks);
+  // Send current score to the new player
+  socket.emit("score_update", totalClicks);
 
-  socket.on('button_clicked', () => {
-    totalClicks += 1;
+  // Player clicked the button
+  socket.on("button_clicked", () => {
+    totalClicks++;
 
-    // Tell EVERY connected player about the new score.
-    io.emit('score_update', totalClicks);
+    // Send the real score to EVERYONE
+    io.emit("score_update", totalClicks);
   });
 
-  socket.on('disconnect', () => {
-    console.log(`Disconnected: ${socket.id}`);
+  socket.on("disconnect", () => {
+    console.log("Player disconnected");
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Global Button Game running at http://localhost:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Global Button Game running on port ${PORT}`);
 });
