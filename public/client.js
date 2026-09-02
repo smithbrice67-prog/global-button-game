@@ -1,16 +1,27 @@
 const button = document.getElementById("button");
 const score = document.getElementById("score");
 
-const socket = io();
+const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+const socket = new WebSocket(`${protocol}//${location.host}`);
 
-socket.on("connect", () => {
-  console.log("Connected to server!");
+socket.addEventListener("open", () => {
+  console.log("Connected!");
 });
 
-socket.on("score_update", (total) => {
-  score.textContent = total;
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+
+  if (data.type === "score") {
+    score.textContent = data.total;
+  }
+});
+
+socket.addEventListener("close", () => {
+  console.log("Disconnected.");
 });
 
 button.addEventListener("click", () => {
-  socket.emit("button_clicked");
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send("button_clicked");
+  }
 });
