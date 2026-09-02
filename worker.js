@@ -3,13 +3,16 @@ import { DurableObject } from "cloudflare:workers";
 export class GlobalCounter extends DurableObject {
   async fetch(request) {
     if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("WebSocket endpoint", { status: 200 });
+      return new Response("Expected WebSocket connection.", {
+        status: 426
+      });
     }
 
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
+    // Hibernatable WebSocket
     this.ctx.acceptWebSocket(server);
 
     const total =
@@ -29,7 +32,12 @@ export class GlobalCounter extends DurableObject {
   }
 
   async webSocketMessage(ws, message) {
-    if (message !== "button_clicked") {
+    const text =
+      typeof message === "string"
+        ? message
+        : new TextDecoder().decode(message);
+
+    if (text !== "button_clicked") {
       return;
     }
 
@@ -48,22 +56,32 @@ export class GlobalCounter extends DurableObject {
     for (const socket of this.ctx.getWebSockets()) {
       try {
         socket.send(update);
-      } catch {}
+      } catch {
+        // Ignore disconnected sockets
+      }
     }
+  }
+
+  async webSocketClose(ws, code, reason, wasClean) {
+    try {
+      ws.close(code, reason);
+    } catch {}
   }
 }
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    const upgrade = request.headers.get("Upgrade");
 
-    if (url.pathname === "/ws") {
+    // WebSocket connection
+    if (upgrade && upgrade.toLowerCase() === "websocket") {
       const id = env.GLOBAL_COUNTER.idFromName("global");
       const counter = env.GLOBAL_COUNTER.get(id);
 
       return counter.fetch(request);
     }
 
+    // Normal website request
     return env.ASSETS.fetch(request);
   }
 };
