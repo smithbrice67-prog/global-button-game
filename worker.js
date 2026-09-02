@@ -1,14 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 
 export class GlobalCounter extends DurableObject {
-  constructor(ctx, env) {
-    super(ctx, env);
-    this.ctx = ctx;
-  }
-
   async fetch(request) {
     if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("Global Button Game is online!");
+      return new Response("WebSocket endpoint", { status: 200 });
     }
 
     const pair = new WebSocketPair();
@@ -20,10 +15,12 @@ export class GlobalCounter extends DurableObject {
     const total =
       (await this.ctx.storage.get("totalClicks")) ?? 0;
 
-    server.send(JSON.stringify({
-      type: "score",
-      total
-    }));
+    server.send(
+      JSON.stringify({
+        type: "score",
+        total
+      })
+    );
 
     return new Response(null, {
       status: 101,
@@ -32,23 +29,25 @@ export class GlobalCounter extends DurableObject {
   }
 
   async webSocketMessage(ws, message) {
-    if (message !== "button_clicked") return;
+    if (message !== "button_clicked") {
+      return;
+    }
 
     let total =
       (await this.ctx.storage.get("totalClicks")) ?? 0;
 
-    total++;
+    total += 1;
 
     await this.ctx.storage.put("totalClicks", total);
 
-    const messageOut = JSON.stringify({
+    const update = JSON.stringify({
       type: "score",
       total
     });
 
     for (const socket of this.ctx.getWebSockets()) {
       try {
-        socket.send(messageOut);
+        socket.send(update);
       } catch {}
     }
   }
@@ -56,9 +55,15 @@ export class GlobalCounter extends DurableObject {
 
 export default {
   async fetch(request, env) {
-    const id = env.GLOBAL_COUNTER.idFromName("global");
-    const counter = env.GLOBAL_COUNTER.get(id);
+    const url = new URL(request.url);
 
-    return counter.fetch(request);
+    if (url.pathname === "/ws") {
+      const id = env.GLOBAL_COUNTER.idFromName("global");
+      const counter = env.GLOBAL_COUNTER.get(id);
+
+      return counter.fetch(request);
+    }
+
+    return env.ASSETS.fetch(request);
   }
 };
